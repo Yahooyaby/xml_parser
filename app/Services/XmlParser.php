@@ -18,43 +18,42 @@ class XmlParser
 
     public function parse()
     {
-        DB::beginTransaction();
-
         try {
-            $xml = new SimpleXMLElement(file_get_contents($this->filePath));
-            $existingOffers = Offer::pluck('id', 'external_id')->toArray();
+            DB::transaction(function () {
+                $xml = new SimpleXMLElement(file_get_contents($this->filePath));
+                $existingOffers = Offer::pluck('id', 'external_id')->toArray();
 
-            foreach ($xml->offers->offer as $offerData) {
-                $externalId = (int)$offerData->id;
+                foreach ($xml->offers->offer as $offerData) {
 
-                $offer = Offer::updateOrCreate(                 ['external_id' => $externalId],
-                    [
-                        'mark' => (string)$offerData->mark,
-                        'model' => (string)$offerData->model,
-                        'generation' => (string)$offerData->generation ?: null,
-                        'year' => (int)$offerData->year,
-                        'run' => (int)$offerData->run,
-                        'color' => (string)$offerData->color ?: null,
-                        'body_type' => (string)$offerData->{'body-type'},
-                        'engine_type' => (string)$offerData->{'engine-type'},
-                        'transmission' => (string)$offerData->transmission,
-                        'gear_type' => (string)$offerData->{'gear-type'},
-                        'generation_id' => (string)$offerData->generation_id ?: null,
-                    ]
-                );
+                    $externalId = (int)$offerData->id;
+                    $arrayData = (array)$offerData;
 
-                if (isset($existingOffers[$externalId])) {
-                    unset($existingOffers[$externalId]);
+                    $data = array_merge(array_intersect_key($arrayData, array_flip((new Offer())->getFillable())), [
+                        'body_type' => $arrayData['body-type'],
+                        'engine_type' => $arrayData['engine-type'],
+                        'gear_type' => $arrayData['gear-type']
+                    ]);
+
+                    $data = array_map(function ($element) {
+                        if ($element instanceof SimpleXMLElement) {
+                            return null;
+                        }
+                        return $element;
+                    }, $data);
+
+
+                    Offer::updateOrCreate(['external_id' => $externalId], $data);
+
+                    if (isset($existingOffers[$externalId])) {
+                        unset($existingOffers[$externalId]);
+                    }
                 }
-            }
 
 
-            Offer::whereIn('external_id', array_keys($existingOffers))->delete();
-
-            DB::commit();
-            Log::info('XML file has been successfully parsed and database updated.');
+                Offer::whereIn('external_id', array_keys($existingOffers))->delete();
+                Log::info('XML file has been successfully parsed and database updated.');
+            });
         } catch (\Exception $e) {
-            DB::rollBack();
             Log::error('Error parsing XML file: ' . $e->getMessage());
             throw $e;
         }

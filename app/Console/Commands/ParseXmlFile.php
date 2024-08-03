@@ -10,10 +10,9 @@ class ParseXmlFile extends Command
     protected $signature = 'parse:xml {--file_path=}';
     protected $description = 'Parse XML file and update database';
 
-    public function handle()
+    public function handle(): int
     {
         $filePath = $this->option('file_path');
-        dd($filePath);
         $parser = new XmlParser($filePath);
 
         try {
@@ -22,5 +21,9 @@ class ParseXmlFile extends Command
         } catch (\Exception $e) {
             $this->error('Error parsing XML file: ' . $e->getMessage());
         }
+
+        return 0;
+
+
     }
 }
