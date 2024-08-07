@@ -21,7 +21,14 @@ class XmlParser
         try {
             DB::transaction(function () {
                 $xml = new SimpleXMLElement(file_get_contents($this->filePath));
-                $existingOffers = Offer::pluck('id', 'external_id')->toArray();
+
+                $offers = Offer::withTrashed()->get()->mapWithKeys(function ($offer) {
+                    return [
+                        $offer->external_id => $offer
+                    ];
+                });
+
+                $existingOffersIds = $offers->keys()->toArray();
 
                 foreach ($xml->offers->offer as $offerData) {
 
@@ -41,16 +48,24 @@ class XmlParser
                         return $element;
                     }, $data);
 
+                    $data['external_id'] = $externalId;
 
-                    Offer::updateOrCreate(['external_id' => $externalId], $data);
+                    if (isset($offers[$externalId])) {
+                        $offer = $offers[$externalId];
+                        if ($offer->deleted_at) {
+                            $data = array_merge(['deleted_at' => null], $data);
+                        }
+                        $offer->update($data);
+                    } else {
+                        Offer::create($data);
+                    }
 
-                    if (isset($existingOffers[$externalId])) {
-                        unset($existingOffers[$externalId]);
+                    if (in_array($externalId, $existingOffersIds)) {
+                        unset($existingOffersIds[array_search($externalId, $existingOffersIds)]);
                     }
                 }
 
-
-                Offer::whereIn('external_id', array_keys($existingOffers))->delete();
+                Offer::whereIn('external_id', $existingOffersIds)->delete();
                 Log::info('XML file has been successfully parsed and database updated.');
             });
         } catch (\Exception $e) {

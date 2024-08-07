@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Offer extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'external_id',
@@ -22,5 +23,6 @@ class Offer extends Model
         'transmission',
         'gear_type',
         'generation_id',
+        'deleted_at',
     ];
 }
