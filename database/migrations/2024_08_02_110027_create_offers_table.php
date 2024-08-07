@@ -26,6 +26,7 @@ return new class extends Migration
             $table->string('gear_type');
             $table->unsignedBigInteger('generation_id')->nullable();
             $table->timestamps();
+            $table->softDeletes();
 
             $table->index('mark');
             $table->index('model');
